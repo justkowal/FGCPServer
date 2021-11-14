@@ -4,16 +4,17 @@ const StormDB = require("stormdb")
 const fetch = require('cross-fetch')
 const { Server } = require("socket.io")
 const { createServer } = require("http")
+require("dotenv")
 
 const app = express()
-const port = 8081
+const port = process.env.PORT
 const httpServer = createServer(app);
 const io = new Server(httpServer,{  
     cors: {    
       origin: "*",     
     }
 });
-const engine = new StormDB.localFileEngine("./db.stormdb")
+const engine = new StormDB.localFileEngine(process.env.DBPATH)
 const db = new StormDB(engine)
 db.default({ users: []}).save()
 
@@ -34,7 +35,7 @@ function Authenticate(req, resp, callback, failcallback=(err)=>{res.send(JSON.st
         return res.json();
     })
     .then(res => {
-        if(res.application.id === "908005676612194335"){
+        if(res.application.id === process.env.DISCORD_APP_ID) {
             var users = db.get("users").value()
             var user = users.find(user => user.discordid == res.user.id)
             if(user==undefined){
@@ -59,11 +60,11 @@ function Authenticate(req, resp, callback, failcallback=(err)=>{res.send(JSON.st
 
 app.post('/auth/gettoken', (req,res)=>{
     var details = {
-        'client_id': '908005676612194335',
-        'client_secret': 'rdvhPAKu2F0_5Ykha5zWOpRGH59Htuwr',
+        'client_id': process.env.DISCORD_APP_ID,
+        'client_secret': process.env.DISCORD_APP_SECRET,
         'grant_type': 'authorization_code',
         'code':req.body.code,
-        'redirect_uri':"http://localhost:2137/auth"
+        'redirect_uri':process.env.DISCORD_APP_REDIRECT_URI
     }
 
     var formBody = []
