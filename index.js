@@ -4,7 +4,7 @@ const StormDB = require("stormdb")
 const fetch = require('cross-fetch')
 const { Server } = require("socket.io")
 const { createServer } = require("http")
-require("dotenv")
+require('dotenv').config({ path: './.env' })
 
 const app = express()
 const port = process.env.PORT
@@ -105,27 +105,32 @@ io.on("connection", socket => {
         console.log("User "+socket.id+" was authorized as "+userinfo.username+"("+userinfo.discordid+")")
         connectedusers[socket.id] = userinfo
         socket.on("joinrequest", joindata => {
-            console.log(connectedusers)
+            console.log(`\nUser ${userinfo.username}(${socket.id}) is trying to join user ${joindata.userid}`)
             var users = db.get("users").value()
             var user = users.find(user => user.discordid == joindata.userid)
             if(user==undefined){
-                console.log("sending rejection")
+                console.log("User does not exist, sending rejection")
                 socket.emit("joinresponse",{accepted:false,error:"Invalid token"})
             }else{
                 socketid = Object.keys(connectedusers)[Object.values(connectedusers).findIndex(fuser => fuser.discordid == joindata.userid)]
                 if(connectedusers[socketid].ongoingjoin || connectedusers[socket.id].ongoingjoin){
+                    console.log("One of the users has an ongoing join request, sending rejection")
                     socket.emit("joinresponse",{accepted:false,error:"User is joining/being joined"})
                 }else{
+                    console.log("User intent verified, sending decision prompt")
                     connectedusers[socketid].ongoingjoin = true
                     connectedusers[socket.id].ongoingjoin = true
-                    io.to(socketid).emit("requestjoinresponse",{name:userinfo.username,userid:userinfo.discordid,...joindata})
+                    joininguserid = userinfo.discordid
+                    io.to(socketid).emit("requestjoinresponse",{...joindata,name:userinfo.username,userid:joininguserid})
                 }
             }
         })
 
         socket.on("sendjoinresponse", joinresponse => {
+            console.log(`\nUser ${userinfo.username} is trying to respond to join request`)
             socketid = Object.keys(connectedusers)[Object.values(connectedusers).findIndex(user => user.discordid == joinresponse.userid)]
             if(connectedusers[socket.id].ongoingjoin && connectedusers[socketid].ongoingjoin){
+                console.log(`User intent verified, sending join response to ${socketid}\nUser will join: ${joinresponse.packet.accepted}`)
                 io.to(socketid).emit("joinresponse",{name:userinfo.username,userid:userinfo.discordid,...joinresponse.packet})
                 connectedusers[socketid].ongoingjoin = false
                 connectedusers[socket.id].ongoingjoin = false
@@ -137,7 +142,6 @@ io.on("connection", socket => {
         socket.on("disconnect", (reason) => {
             console.log("\nUser "+socket.id+" disconnected because of "+reason)
             delete connectedusers[socket.id]
-            console.log(connectedusers)
         })
     },()=>{
         console.log("User "+socket.id+" was not authorized and will be disconnected")
